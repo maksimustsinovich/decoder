@@ -42,10 +42,6 @@ def calculate_checksum(byte_array):
     return int(crc8.crc8(byte_array).hexdigest(), 16)
 
 
-def le_uint_from_bytes(byte_array):
-    return int.from_bytes(byte_array, "little", signed=False)
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('binary')
