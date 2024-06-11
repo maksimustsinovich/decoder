@@ -12,14 +12,16 @@ def print_log(timestamp, time_offset_us, format_string, args, specifiers):
     specifier_index = 0
     log_message = format_string
 
+    # ToDo: add format specifier length
+
     while arg_index < len(args) and specifier_index < len(specifiers):
         value = 0
 
         if "X" in specifiers[specifier_index]:
-            value = hex(args[arg_index]).upper()
+            value = hex(args[arg_index]).upper().removeprefix("0X")
 
         if "x" in specifiers[specifier_index]:
-            value = hex(args[arg_index])
+            value = hex(args[arg_index]).removeprefix("0x")
 
         if "lld" in specifiers[specifier_index] or "llu" in specifiers[specifier_index] or \
                 "u" in specifiers[specifier_index] or "d" in specifiers[specifier_index] or \
@@ -58,7 +60,7 @@ if __name__ == "__main__":
         data_format = json.load(json_file)  # load their content
         data_format = {int(key): value for key, value in data_format.items()}  # transform dict so that key is number
 
-    with open(binary_path, "rb") as binary_file:  # open a binary file
+    with (open(binary_path, "rb") as binary_file):  # open a binary file
         while page := binary_file.read(512):  # read page
             offset = 0
             time_offset_us = 0
@@ -67,9 +69,11 @@ if __name__ == "__main__":
             while offset < 512:
                 entry = page[offset:offset + 10]  # get fixed payload
 
-                checksum = le_uint_from_bytes(entry[:1])  # 1 byte is real CRC8 checksum
-                size = le_uint_from_bytes(entry[1:2])  # 2 byte is size
-                string_addr = le_uint_from_bytes(entry[2:6])  # 3-6 bytes is string addr
+                # checksum = le_uint_from_bytes(entry[:1])  # 1 byte is real CRC8 checksum
+                # size = le_uint_from_bytes(entry[1:2])  # 2 byte is size
+                # string_addr = le_uint_from_bytes(entry[2:6])  # 3-6 bytes is string addr
+
+                checksum, size, string_addr, time_value = struct.unpack("<BBII", entry)
 
                 entry = page[offset:offset + size]  # get full payload
                 expected_checksum = calculate_checksum(entry[1:])
@@ -82,14 +86,16 @@ if __name__ == "__main__":
                     break
 
                 if string_addr == 0:  # SyncFrame string address is always 0
-                    timestamp = le_uint_from_bytes(entry[6:10])  # 7-10 bytes of SyncFrame is UNIX time
+                    # timestamp = le_uint_from_bytes(entry[6:10])  # 7-10 bytes of SyncFrame is UNIX time
+                    timestamp = time_value
 
                     if size != 10:  # SyncFrame size is always 10
                         print(f"Error: invalid SyncFrame size at {binary_file.tell() - 512 + offset}", file=sys.stderr)
                         break
 
                 else:  # else is Message
-                    time_offset_us = le_uint_from_bytes(entry[6:10])  # 7-10 bytes of Message is time offset
+                    # time_offset_us = le_uint_from_bytes(entry[6:10])  # 7-10 bytes of Message is time offset
+                    time_offset_us = time_value
 
                     format_string = data_format.get(string_addr)
 
@@ -106,17 +112,30 @@ if __name__ == "__main__":
                     data_index = 0
                     specifier_index = 0
                     while data_index < len(data):  # form args list by specifiers
-                        if "X" in specifiers[specifier_index] or "x" in specifiers[specifier_index] or \
-                                "u" in specifiers[specifier_index] or "d" in specifiers[specifier_index]:
-                            args.append(le_uint_from_bytes(data[data_index:data_index + 4]))
+                        if "d" in specifiers[specifier_index]:
+                            value = struct.unpack("<i", data[data_index:data_index + 4])
+                            args.append(*value)
+                            data_index += 4
+
+                        if "u" in specifiers[specifier_index] or "X" in specifiers[specifier_index] or \
+                                "x" in specifiers[specifier_index]:
+                            value = struct.unpack("<I", data[data_index:data_index + 4])
+                            args.append(*value)
                             data_index += 4
 
                         if "s" in specifiers[specifier_index]:
-                            args.append(data_format.get(le_uint_from_bytes(data[data_index:data_index + 4])))
+                            value = struct.unpack("<I", data[data_index:data_index + 4])
+                            args.append(data_format.get(*value))
                             data_index += 4
 
-                        if "lld" in specifiers[specifier_index] or "llu" in specifiers[specifier_index]:
-                            args.append(le_uint_from_bytes(data[data_index:data_index + 8]))
+                        if "lld" in specifiers[specifier_index]:
+                            value = struct.unpack("<q", data[data_index:data_index + 8])
+                            args.append(value)
+                            data_index += 8
+
+                        if "llu" in specifiers[specifier_index]:
+                            value = struct.unpack("<Q", data[data_index:data_index + 8])
+                            args.append(value)
                             data_index += 8
 
                         if "c" in specifiers[specifier_index]:
