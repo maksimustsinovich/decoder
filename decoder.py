@@ -3,6 +3,7 @@ import sys
 import crc8
 import re
 import argparse
+import struct
 
 
 def print_log(timestamp, time_offset_us, format_string, args, specifiers):
@@ -99,7 +100,7 @@ if __name__ == "__main__":
                             file=sys.stderr)
 
                     data = entry[10:size]  # get data
-                    specifiers = re.findall(r"%(s|\d*[xXudc]|\d*llu|\d*lld)", format_string)  # get specifiers
+                    specifiers = re.findall(r"%(\d*[sxXudc]|\d*llu|\d*lld)", format_string)  # get specifiers
 
                     args = []
                     data_index = 0
