@@ -6,39 +6,55 @@ import argparse
 import struct
 
 
-def print_log(time, time_offset, fmt_string, arguments, fmt_specifiers):
-    """Print log message with C-like string format"""
+def generate_log_message(time, time_offset, fmt_string, arguments, fmt_specifiers):
+    """Generate log message with C-like string format"""
 
     timestamp_string = "%010u.%06u" % (time, time_offset)
     arg_index = 0
     fmt_index = 0
     log_message = fmt_string
 
-    # ToDo: add format specifier length
-
     while arg_index < len(arguments) and fmt_index < len(fmt_specifiers):
         value = 0
 
         current_specifier = fmt_specifiers[fmt_index]
         current_argument = arguments[arg_index]
+
+        # Parse format specifier
+        width = 0
+        align = '-'
+        fill_char = ' '
+        for char in current_specifier:
+            if char.isdigit():
+                width = int(char)
+            elif char in ['-', '0']:
+                if char == '-':
+                    align = '-'
+
+        if current_specifier.startswith("0"):
+            fill_char = "0"
+
         if "X" in current_specifier:
             value = hex(current_argument).upper().removeprefix("0X")
-
         elif "x" in current_specifier:
             value = hex(current_argument).removeprefix("0x")
-
         elif ("lld" in current_specifier or "llu" in current_specifier or
               "u" in current_specifier or "d" in current_specifier or "s" in current_specifier):
             value = str(current_argument)
-
         elif "c" in current_specifier:
             value = str(chr(current_argument))
+
+        if width > 0:
+            if align == '-':
+                value = value.rjust(width, fill_char)
+            else:
+                value = value.ljust(width, fill_char)
 
         log_message = log_message.replace("%" + current_specifier, value, 1)
         arg_index += 1
         fmt_index += 1
 
-    print(timestamp_string, log_message)
+    return f"{timestamp_string} {log_message}"
 
 
 def calculate_checksum(byte_array):
@@ -108,38 +124,38 @@ if __name__ == "__main__":
                     specifier_index = 0
                     while data_index < len(data):  # form args list by specifiers
                         specifier = specifiers[specifier_index]
-                        if "d" in specifier:
+                        if "d" in specifier:  # signed decimal
                             value = struct.unpack("<i", data[data_index:data_index + 4])
                             args.append(*value)
                             data_index += 4
 
                         elif ("u" in specifier or "X" in specifier or
-                              "x" in specifier):
+                              "x" in specifier):  # unsigned decimal or upper / lower hex
                             value = struct.unpack("<I", data[data_index:data_index + 4])
                             args.append(*value)
                             data_index += 4
 
-                        elif "s" in specifier:
+                        elif "s" in specifier:  # string
                             value = struct.unpack("<I", data[data_index:data_index + 4])
                             args.append(data_format.get(*value))
                             data_index += 4
 
-                        elif "lld" in specifier:
+                        elif "lld" in specifier:  # long long signed decimal
                             value = struct.unpack("<q", data[data_index:data_index + 8])
                             args.append(value)
                             data_index += 8
 
-                        elif "llu" in specifier:
+                        elif "llu" in specifier:  # long long unsigned decimal
                             value = struct.unpack("<Q", data[data_index:data_index + 8])
                             args.append(value)
                             data_index += 8
 
-                        elif "c" in specifier:
+                        elif "c" in specifier:  # char
                             args.append(data[data_index])
                             data_index += 1
 
                         specifier_index += 1
 
-                    print_log(timestamp, time_offset_us, format_string, args, specifiers)
+                    print(generate_log_message(timestamp, time_offset_us, format_string, args, specifiers))
 
                 offset += size  # increment offset
