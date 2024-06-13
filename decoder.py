@@ -6,6 +6,13 @@ import argparse
 import struct
 
 
+def find_first_number_sequence(s):
+    match = re.search(r'\d+', s)
+    if match:
+        return match.group()
+    return None
+
+
 def generate_log_message(time, time_offset, fmt_string, arguments, fmt_specifiers):
     """Generate log message with C-like string format"""
 
@@ -21,17 +28,17 @@ def generate_log_message(time, time_offset, fmt_string, arguments, fmt_specifier
         current_argument = arguments[arg_index]
 
         # Parse format specifier
-        width = 0
-        align = '-'
+        align = ''
         fill_char = ' '
-        for char in current_specifier:
-            if char.isdigit():
-                width = int(char)
-            elif char in ['-', '0']:
-                if char == '-':
-                    align = '-'
 
-        if current_specifier.startswith("0"):
+        number_sequence = find_first_number_sequence(current_specifier)
+
+        width = 0 if number_sequence is None else int(number_sequence)
+
+        if current_specifier.startswith("-"):
+            align = "-"
+
+        elif current_specifier.startswith("0"):
             fill_char = "0"
 
         if "X" in current_specifier:
