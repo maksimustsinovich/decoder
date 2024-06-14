@@ -5,6 +5,9 @@ import re
 import argparse
 import struct
 
+ENTRY_FIXED_SIZE = 10
+PAGE_SIZE = 512
+
 
 def find_first_number_sequence(s):
     match = re.search(r'\d+', s)
@@ -85,31 +88,32 @@ if __name__ == "__main__":
         data_format = {int(key): value for key, value in data_format.items()}  # transform dict so that key is number
 
     with (open(binary_path, "rb") as binary_file):  # open a binary file
-        while page := binary_file.read(512):  # read page
+        while page := binary_file.read(PAGE_SIZE):  # read page
             offset = 0
             time_offset_us = 0
             timestamp = 0
 
-            while offset < 512:
-                entry = page[offset:offset + 10]  # get fixed payload
+            while offset < PAGE_SIZE:
+                entry = page[offset:offset + ENTRY_FIXED_SIZE]  # get fixed payload
 
                 checksum, size, string_addr, time_value = struct.unpack("<BBII", entry)
 
                 entry = page[offset:offset + size]  # get full payload
                 expected_checksum = calculate_checksum(entry[1:])
 
-                if size < 10:  # if size less than fixed size - page ended
+                if size < ENTRY_FIXED_SIZE:  # if size less than fixed size - page ended
                     break
 
                 if checksum != expected_checksum:  # checksum cannot be different
-                    print(f"Error: invalid checksum at {binary_file.tell() - 512 + offset}", file=sys.stderr)
+                    print(f"Error: invalid checksum at {binary_file.tell() - PAGE_SIZE + offset}", file=sys.stderr)
                     break
 
                 if string_addr == 0:  # SyncFrame string address is always 0
                     timestamp = time_value
 
-                    if size != 10:  # SyncFrame size is always 10
-                        print(f"Error: invalid SyncFrame size at {binary_file.tell() - 512 + offset}", file=sys.stderr)
+                    if size != ENTRY_FIXED_SIZE:  # SyncFrame size is always 10
+                        print(f"Error: invalid SyncFrame size at {binary_file.tell() - PAGE_SIZE + offset}",
+                              file=sys.stderr)
                         break
 
                 else:  # else is Message
@@ -120,10 +124,10 @@ if __name__ == "__main__":
                     if not format_string:  # if string with this address not exists
                         print(
                             f"""Error: unknown format string at address {string_addr}
-                             at {binary_file.tell() - 512 + offset}""",
+                             at {binary_file.tell() - PAGE_SIZE + offset}""",
                             file=sys.stderr)
 
-                    data = entry[10:size]  # get data
+                    data = entry[ENTRY_FIXED_SIZE:size]  # get data
                     specifiers = re.findall(r"%(-?\d*[sxXudc]|\d*llu|\d*lld)", format_string)  # get specifiers
 
                     args = []
